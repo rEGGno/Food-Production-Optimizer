@@ -8,217 +8,133 @@
 
 using namespace std;
 
-// Node Category Tracking Enum
-enum NodeType { INGREDIENT_CHOICE, COMPOSITE_PRODUCT };
-
-// Structure to represent a recipe option/pathway
 struct Edge {
-    int targetNode;
+    int targetState;
     double cost;
     string actionDescription;
 };
 
-// Global structures to map string names to integer IDs for the graph
-unordered_map<string, int> nodeIDs;
-unordered_map<int, string> nodeNames;
-unordered_map<int, NodeType> nodeTypes; // Explicitly stores if a node is a choice or a combination
-int nodeCounter = 0;
-
-// Function to safely get or create a node ID
-int getNodeID(const string& name, NodeType type) {
-    if (nodeIDs.find(name) == nodeIDs.end()) {
-        nodeIDs[name] = nodeCounter;
-        nodeNames[nodeCounter] = name;
-        nodeTypes[nodeCounter] = type;
-        nodeCounter++;
-    }
-    return nodeIDs[name];
-}
-
-// Computes the absolute minimum cost to obtain a node
-double computeMinCosts(int u, 
-                       const unordered_map<int, vector<Edge>>& graph, 
-                       unordered_map<int, double>& memoTable, 
-                       unordered_map<int, int>& bestChoiceTracker) {
-    
-    if (memoTable.find(u) != memoTable.end()) {
-        return memoTable[u];
-    }
-
-    // Leaf nodes (terminal raw materials)
-    if (graph.find(u) == graph.end() || graph.at(u).empty()) {
-        return memoTable[u] = 0;
-    }
-
-    // Use the explicit node type configuration map rather than unstable string checking
-    if (nodeTypes[u] == INGREDIENT_CHOICE) {
-        double minCost = numeric_limits<double>::infinity();
-        int bestEdgeIndex = -1;
-
-        // Evaluate all user-input options to choose ONLY the absolute cheapest single choice
-        for (int i = 0; i < graph.at(u).size(); ++i) {
-            const auto& edge = graph.at(u)[i];
-            double choiceCost = edge.cost + computeMinCosts(edge.targetNode, graph, memoTable, bestChoiceTracker);
-            if (choiceCost < minCost) {
-                minCost = choiceCost;
-                bestEdgeIndex = i;
-            }
-        }
-        bestChoiceTracker[u] = bestEdgeIndex; // Save the winning choice option index
-        return memoTable[u] = minCost;
-    } else {
-        // If it's a composite product, aggregate ALL of its structural ingredients
-        double structuralTotal = 0;
-        for (const auto& edge : graph.at(u)) {
-            structuralTotal += edge.cost + computeMinCosts(edge.targetNode, graph, memoTable, bestChoiceTracker);
-        }
-        return memoTable[u] = structuralTotal;
-    }
-}
-
-// Strict Top-Down Trace to construct the optimized printout receipt
-void generateReceipt(int u, 
-                     const unordered_map<int, vector<Edge>>& graph, 
-                     const unordered_map<int, int>& bestChoiceTracker, 
-                     vector<string>& receiptLines, 
-                     double& totalCost) {
-    
-    if (graph.find(u) == graph.end() || graph.at(u).empty()) {
-        return;
-    }
-
-    if (nodeTypes[u] == INGREDIENT_CHOICE) {
-        if (bestChoiceTracker.find(u) != bestChoiceTracker.end()) {
-            int optimalIndex = bestChoiceTracker.at(u);
-            const auto& edge = graph.at(u)[optimalIndex];
-            
-            if (edge.cost > 0) {
-                string line = "- " + edge.actionDescription + " : Rp" + to_string((int)edge.cost);
-                receiptLines.push_back(line);
-                totalCost += edge.cost;
-            }
-            generateReceipt(edge.targetNode, graph, bestChoiceTracker, receiptLines, totalCost);
-        }
-    } else {
-        // Process ALL required structural ingredients for composite recipes
-        for (const auto& edge : graph.at(u)) {
-            if (edge.cost > 0) {
-                string line = "- " + edge.actionDescription + " : Rp" + to_string((int)edge.cost);
-                receiptLines.push_back(line);
-                totalCost += edge.cost;
-            }
-            generateReceipt(edge.targetNode, graph, bestChoiceTracker, receiptLines, totalCost);
-        }
-    }
-}
+struct MarketOption {
+    string description;
+    double cost;
+};
 
 int main() {
-    unordered_map<int, vector<Edge>> graph;
-    vector<int> ingredientCategoryNodes;
     string bufferInput;
 
     cout << "==================================================\n";
-    cout << "       DYNAMIC SUPPLY PATHWAY CONFIGURATOR        \n";
+    cout << "        PURE DIJKSTRA RECONSTRUCTED SYSTEM        \n";
     cout << "==================================================\n";
 
-    // 1. Dynamic Setup Wizard Loop using explicit type parameters
-    cout << "How many core ingredients do you want to manage? ";
+    cout << "How many core ingredients does the recipe need? ";
     getline(cin, bufferInput);
     int totalIngredients = stoi(bufferInput);
 
+    if (totalIngredients > 15 || totalIngredients <= 0) {
+        cout << "Please enter a value between 1 and 15.\n";
+        return 1;
+    }
+
+    vector<string> ingredientNames(totalIngredients);
+    vector<vector<MarketOption>> sourcingOptions(totalIngredients);
+
     for (int i = 0; i < totalIngredients; ++i) {
         cout << "\nEnter name for Ingredient #" << (i + 1) << " (e.g., 1 kg Flour): ";
-        string ingredientName;
-        getline(cin, ingredientName);
-        
-        // Explicitly declare this node as an ingredient choice intersection
-        int ingredientNodeID = getNodeID(ingredientName, INGREDIENT_CHOICE);
-        ingredientCategoryNodes.push_back(ingredientNodeID);
+        getline(cin, ingredientNames[i]);
 
-        cout << "How many sourcing options/pathways exist for " << ingredientName << "? ";
+        cout << "How many sourcing options/pathways exist for " << ingredientNames[i] << "? ";
         getline(cin, bufferInput);
         int totalOptions = stoi(bufferInput);
 
         for (int j = 0; j < totalOptions; ++j) {
+            MarketOption option;
             cout << "  Option " << (j + 1) << " description (e.g., Buy from Market A): ";
-            string description;
-            getline(cin, description);
+            getline(cin, option.description);
 
             cout << "  Price/Cost for this option (Rp): ";
             getline(cin, bufferInput);
-            double cost = stod(bufferInput);
+            option.cost = stod(bufferInput);
 
-            // Leaf nodes are terminal endpoints
-            string childNodeName = ingredientName + " via Choice " + to_string(j + 1);
-            int childNodeID = getNodeID(childNodeName, COMPOSITE_PRODUCT);
-
-            graph[ingredientNodeID].push_back({childNodeID, cost, description});
+            sourcingOptions[i].push_back(option);
         }
     }
 
-    // 2. Final Product Assignment
     cout << "\n==================================================\n";
-    cout << "Create a final composite product name (e.g., Custom Bread)\n";
-    cout << "This item will combine all ingredients listed above.\n";
-    cout << "Product name: ";
+    cout << "Create a final composite product name (e.g., Loaf of Bread): ";
     string customProductName;
     getline(cin, customProductName);
-    
-    // Explicitly declare the final target item as a combination product
-    int productNodeID = getNodeID(customProductName, COMPOSITE_PRODUCT);
-
-    for (int ingID : ingredientCategoryNodes) {
-        graph[productNodeID].push_back({ingID, 0, "Include required component: " + nodeNames[ingID]});
-    }
-
-    for (int i = 0; i < nodeCounter; ++i) {
-        if (graph.find(i) == graph.end()) {
-            graph[i] = {};
-        }
-    }
-
-    // 3. Operational User Interface
-    cout << "\n==================================================\n";
-    cout << "Available target optimization items:\n";
-    cout << " - " << customProductName << " (Combines all ingredients)\n";
-    for (int ingID : ingredientCategoryNodes) {
-        cout << " - " << nodeNames[ingID] << " (Optimize just this item alone)\n";
-    }
-    cout << "--------------------------------------------------\n";
-
-    cout << "Enter the item you want to optimize: ";
-    string targetProduct;
-    getline(cin, targetProduct);
-
-    if (nodeIDs.find(targetProduct) == nodeIDs.end()) {
-        cout << "\nError: Selection not found in database.\n";
-        return 1;
-    }
 
     cout << "Enter your available budget (Rp): ";
     getline(cin, bufferInput);
     double budget = stod(bufferInput);
 
-    // 4. Run Core Shortest-Path Graph Engines
-    int startNode = nodeIDs[targetProduct];
-    unordered_map<int, double> memoTable;
-    unordered_map<int, int> bestChoiceTracker;
+    int totalStates = 1 << totalIngredients;
+    int targetState = totalStates - 1;
 
-    computeMinCosts(startNode, graph, memoTable, bestChoiceTracker);
+    vector<vector<Edge>> graph(totalStates);
 
-    double totalCost = 0;
+    for (int currentState = 0; currentState < totalStates; ++currentState) {
+        for (int i = 0; i < totalIngredients; ++i) {
+            if ((currentState & (1 << i)) == 0) {
+                int nextState = currentState | (1 << i);
+                
+                for (const auto& option : sourcingOptions[i]) {
+                    graph[currentState].push_back({nextState, option.cost, option.description});
+                }
+            }
+        }
+    }
+
+    vector<double> minCost(totalStates, numeric_limits<double>::infinity());
+    vector<int> parentState(totalStates, -1);
+    vector<Edge> parentEdge(totalStates);
+
+    priority_queue<pair<double, int>, vector<pair<double, int>>, greater<pair<double, int>>> pq;
+
+    minCost[0] = 0;
+    pq.push({0.0, 0});
+
+    while (!pq.empty()) {
+        double currentCost = pq.top().first;
+        int u = pq.top().second;
+        pq.pop();
+
+        if (currentCost > minCost[u]) continue;
+
+        if (u == targetState) break;
+
+        for (const auto& edge : graph[u]) {
+            int v = edge.targetState;
+            double nextCost = currentCost + edge.cost;
+
+            if (nextCost < minCost[v]) {
+                minCost[v] = nextCost;
+                parentState[v] = u;
+                parentEdge[v] = edge;
+                pq.push({nextCost, v});
+            }
+        }
+    }
+
+    double totalCost = minCost[targetState];
     vector<string> receiptLines;
-    generateReceipt(startNode, graph, bestChoiceTracker, receiptLines, totalCost);
+    
+    int curr = targetState;
+    while (curr != 0 && parentState[curr] != -1) {
+        receiptLines.push_back("- " + parentEdge[curr].actionDescription + " : Rp" + to_string((int)parentEdge[curr].cost));
+        curr = parentState[curr];
+    }
+    reverse(receiptLines.begin(), receiptLines.end());
 
-    // 5. Output Final Single-Path Receipt
+
     cout << "\n==================================================\n";
-    cout << "                OPTIMAL RECEIPT                   \n";
+    cout << "          PURE DIJKSTRA OPTIMAL RECEIPT           \n";
     cout << "==================================================\n";
-    cout << "Target Item : " << targetProduct << "\n";
+    cout << "Target Item : " << customProductName << "\n";
     cout << "--------------------------------------------------\n";
     
-    if (receiptLines.empty()) {
-        cout << "No actions found or item selection is free.\n";
+    if (totalCost == numeric_limits<double>::infinity() || receiptLines.empty()) {
+        cout << "No manufacturing path could be processed.\n";
     } else {
         for (const auto& line : receiptLines) {
             cout << line << "\n";
