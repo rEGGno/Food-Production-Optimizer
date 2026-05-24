@@ -23,7 +23,7 @@ int main() {
     string bufferInput;
 
     cout << "==================================================\n";
-    cout << "        PURE DIJKSTRA RECONSTRUCTED SYSTEM        \n";
+    cout << "                  DIJKSTRA SYSTEM                 \n";
     cout << "==================================================\n";
 
     cout << "How many core ingredients does the recipe need? ";
@@ -128,8 +128,8 @@ int main() {
 
 
     cout << "\n==================================================\n";
-    cout << "          PURE DIJKSTRA OPTIMAL RECEIPT           \n";
-    cout << "==================================================\n";
+    cout << "                  OPTIMAL RECEIPT                   \n";
+    cout << "====================================================\n";
     cout << "Target Item : " << customProductName << "\n";
     cout << "--------------------------------------------------\n";
     
