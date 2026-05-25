@@ -12,6 +12,7 @@ struct Edge {
     int targetState;
     double cost;
     string actionDescription;
+    string ingredientName; // NEW: Track the core ingredient for this path transition
 };
 
 struct MarketOption {
@@ -39,7 +40,7 @@ int main() {
     vector<vector<MarketOption>> sourcingOptions(totalIngredients);
 
     for (int i = 0; i < totalIngredients; ++i) {
-        cout << "\nEnter name for Ingredient #" << (i + 1) << " (e.g., 1 kg Flour): ";
+        cout << "\nEnter name for Ingredient #" << (i + 1) << " (e.g., Flour): ";
         getline(cin, ingredientNames[i]);
 
         cout << "How many sourcing options/pathways exist for " << ingredientNames[i] << "? ";
@@ -48,7 +49,7 @@ int main() {
 
         for (int j = 0; j < totalOptions; ++j) {
             MarketOption option;
-            cout << "  Option " << (j + 1) << " description (e.g., Buy from Market A): ";
+            cout << "  Option " << (j + 1) << " description (e.g., Store bought): ";
             getline(cin, option.description);
 
             cout << "  Price/Cost for this option (Rp): ";
@@ -79,7 +80,8 @@ int main() {
                 int nextState = currentState | (1 << i);
                 
                 for (const auto& option : sourcingOptions[i]) {
-                    graph[currentState].push_back({nextState, option.cost, option.description});
+                    // UPDATED: Pass the matching ingredient name into the graph edge
+                    graph[currentState].push_back({nextState, option.cost, option.description, ingredientNames[i]});
                 }
             }
         }
@@ -121,7 +123,10 @@ int main() {
     
     int curr = targetState;
     while (curr != 0 && parentState[curr] != -1) {
-        receiptLines.push_back("- " + parentEdge[curr].actionDescription + " : Rp" + to_string((int)parentEdge[curr].cost));
+        // UPDATED: Format the output line to display Core Ingredient first, then the description
+        string line = "- Core Ingredient: " + parentEdge[curr].ingredientName + "\n" +
+                      "  " + parentEdge[curr].actionDescription + ": Rp" + to_string((int)parentEdge[curr].cost);
+        receiptLines.push_back(line);
         curr = parentState[curr];
     }
     reverse(receiptLines.begin(), receiptLines.end());
@@ -129,7 +134,7 @@ int main() {
 
     cout << "\n==================================================\n";
     cout << "                  OPTIMAL RECEIPT                   \n";
-    cout << "====================================================\n";
+    cout << "===================================================\n";
     cout << "Target Item : " << customProductName << "\n";
     cout << "--------------------------------------------------\n";
     
