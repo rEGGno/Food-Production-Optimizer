@@ -12,7 +12,7 @@ struct Edge {
     int targetState;
     double cost;
     string actionDescription;
-    string ingredientName; // NEW: Track the core ingredient for this path transition
+    string ingredientName;
 };
 
 struct MarketOption {
@@ -80,7 +80,6 @@ int main() {
                 int nextState = currentState | (1 << i);
                 
                 for (const auto& option : sourcingOptions[i]) {
-                    // UPDATED: Pass the matching ingredient name into the graph edge
                     graph[currentState].push_back({nextState, option.cost, option.description, ingredientNames[i]});
                 }
             }
@@ -123,7 +122,6 @@ int main() {
     
     int curr = targetState;
     while (curr != 0 && parentState[curr] != -1) {
-        // UPDATED: Format the output line to display Core Ingredient first, then the description
         string line = "- Core Ingredient: " + parentEdge[curr].ingredientName + "\n" +
                       "  " + parentEdge[curr].actionDescription + ": Rp" + to_string((int)parentEdge[curr].cost);
         receiptLines.push_back(line);
