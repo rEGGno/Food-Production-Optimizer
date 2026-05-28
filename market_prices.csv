@@ -1,0 +1,28 @@
+Source,Destination,Action,Cost
+START,Raw Wheat,Buy raw grain from local farmer,5000
+START,Flour,Buy Bulk Flour at Pasar Tradisional,11000
+START,Flour,Buy Premium Flour at Supermarket,15000
+Raw Wheat,Flour,Mill grain in-house (Electricity),2000
+Flour,Bread Dough,Mix and knead with yeast and water,3000
+START,Bread Dough,Buy Pre-made Frozen Dough,22000
+Bread Dough,Artisan Bread,Proof and bake in a commercial oven,6000
+START,Artisan Bread,Buy ready-made from a premium bakery,45000
+START,Uncooked Rice,Buy 1kg standard rice from Agen Sembako,14000
+START,Uncooked Rice,Buy 1kg organic rice from Supermarket,25000
+Uncooked Rice,Cooked Rice,Wash and cook in a Rice Cooker (Electricity),1500
+START,Cooked Rice,Buy 1 portion of plain white rice from Warteg,5000
+Cooked Rice,Plain Fried Rice,Stir fry with basic aromatics and oil,4000
+Plain Fried Rice,Nasi Goreng Ayam,Incorporate shredded chicken and fried egg,7000
+START,Nasi Goreng Ayam,Buy from Abang-Abang Gerobak (Street Vendor),15000
+START,Nasi Goreng Ayam,Order via online delivery from Indonesian Restaurant,35000
+START,Whole Raw Chicken,Buy whole raw chicken from traditional wet market,32000
+START,Cut Chicken Pieces,Buy pre-cut clean chicken pieces from supermarket,45000
+Whole Raw Chicken,Cut Chicken Pieces,Clean and butcher chicken manually,2000
+Cut Chicken Pieces,Marinated Chicken,Season with secret spice blend overnight,4000
+Marinated Chicken,Crispy Fried Chicken,Coat in flour batter and deep fry,8000
+START,Crispy Fried Chicken,Buy from Local Street Booth (Sabana/Hisana),13000
+START,Crispy Fried Chicken,Buy combo meal from Fast Food Chain (KFC/McD),26000
+START,Fresh Chili and Garlic,Buy raw ingredients from Pasar Induk,8000
+START,Fresh Chili and Garlic,Buy packaged ingredients from Supermarket,15000
+Fresh Chili and Garlic,Homemade Sambal,Grind in stone mortar and flash fry,3000
+START,Homemade Sambal,Buy a bottle of commercial branded Sambal,18000

@@ -4,157 +4,319 @@
 #include <unordered_map>
 #include <queue>
 #include <limits>
+#include <fstream>
+#include <sstream>
 #include <algorithm>
 
 using namespace std;
 
-struct Edge {
-    int targetState;
-    double cost;
+// ---------------------------------------------------------
+// DATA STRUCTURES
+// ---------------------------------------------------------
+struct Edge
+{
+    string destination;
     string actionDescription;
-    string ingredientName;
-};
-
-struct MarketOption {
-    string description;
     double cost;
 };
 
-int main() {
-    string bufferInput;
+// ---------------------------------------------------------
+// CLASS: CulinaryGraph
+// Handles the Adjacency List representing the supply chain
+// ---------------------------------------------------------
+class CulinaryGraph
+{
+public:
+    unordered_map<string, vector<Edge>> adjList;
 
-    cout << "==================================================\n";
-    cout << "                  DIJKSTRA SYSTEM                 \n";
-    cout << "==================================================\n";
-
-    cout << "How many core ingredients does the recipe need? ";
-    getline(cin, bufferInput);
-    int totalIngredients = stoi(bufferInput);
-
-    if (totalIngredients > 15 || totalIngredients <= 0) {
-        cout << "Please enter a value between 1 and 15.\n";
-        return 1;
+    void addEdge(const string &source, const string &dest, const string &action, double cost)
+    {
+        adjList[source].push_back({dest, action, cost});
     }
+};
 
-    vector<string> ingredientNames(totalIngredients);
-    vector<vector<MarketOption>> sourcingOptions(totalIngredients);
-
-    for (int i = 0; i < totalIngredients; ++i) {
-        cout << "\nEnter name for Ingredient #" << (i + 1) << " (e.g., Flour): ";
-        getline(cin, ingredientNames[i]);
-
-        cout << "How many sourcing options/pathways exist for " << ingredientNames[i] << "? ";
-        getline(cin, bufferInput);
-        int totalOptions = stoi(bufferInput);
-
-        for (int j = 0; j < totalOptions; ++j) {
-            MarketOption option;
-            cout << "  Option " << (j + 1) << " description (e.g., Store bought): ";
-            getline(cin, option.description);
-
-            cout << "  Price/Cost for this option (Rp): ";
-            getline(cin, bufferInput);
-            option.cost = stod(bufferInput);
-
-            sourcingOptions[i].push_back(option);
+// ---------------------------------------------------------
+// CLASS: CSVParser
+// Handles data ingestion from the market_prices.csv file
+// ---------------------------------------------------------
+class CSVParser
+{
+public:
+    static bool loadGraph(const string &filename, CulinaryGraph &graph)
+    {
+        ifstream file(filename);
+        if (!file.is_open())
+        {
+            cout << "ERROR: Could not open " << filename << "\n";
+            return false;
         }
-    }
 
-    cout << "\n==================================================\n";
-    cout << "Create a final composite product name (e.g., Loaf of Bread): ";
-    string customProductName;
-    getline(cin, customProductName);
+        string line, source, dest, action, costStr;
+        getline(file, line); // Skip header
 
-    cout << "Enter your available budget (Rp): ";
-    getline(cin, bufferInput);
-    double budget = stod(bufferInput);
+        while (getline(file, line))
+        {
+            stringstream ss(line);
+            getline(ss, source, ',');
+            getline(ss, dest, ',');
+            getline(ss, action, ',');
+            getline(ss, costStr, ',');
 
-    int totalStates = 1 << totalIngredients;
-    int targetState = totalStates - 1;
+            if (!costStr.empty() && costStr.back() == '\r')
+            {
+                costStr.pop_back();
+            }
 
-    vector<vector<Edge>> graph(totalStates);
-
-    for (int currentState = 0; currentState < totalStates; ++currentState) {
-        for (int i = 0; i < totalIngredients; ++i) {
-            if ((currentState & (1 << i)) == 0) {
-                int nextState = currentState | (1 << i);
-                
-                for (const auto& option : sourcingOptions[i]) {
-                    graph[currentState].push_back({nextState, option.cost, option.description, ingredientNames[i]});
+            if (!source.empty() && !dest.empty() && !costStr.empty())
+            {
+                try
+                {
+                    graph.addEdge(source, dest, action, stod(costStr));
+                }
+                catch (...)
+                {
+                    continue;
                 }
             }
         }
+        file.close();
+        return true;
     }
+};
 
-    vector<double> minCost(totalStates, numeric_limits<double>::infinity());
-    vector<int> parentState(totalStates, -1);
-    vector<Edge> parentEdge(totalStates);
+// ---------------------------------------------------------
+// CLASS: GraphvizExporter
+// Generates professional DOT files for network visualization
+// ---------------------------------------------------------
+class GraphvizExporter
+{
+public:
+    static void generateDOTFile(
+        CulinaryGraph &graph,
+        const string &filename,
+        unordered_map<string, string> &parentNode,
+        const string &startNode,
+        const string &targetNode,
+        bool pathFound)
+    {
+        ofstream file(filename);
+        if (!file.is_open())
+        {
+            cout << "WARNING: Could not generate visualization file.\n";
+            return;
+        }
 
-    priority_queue<pair<double, int>, vector<pair<double, int>>, greater<pair<double, int>>> pq;
+        // Initialize DOT format headers
+        file << "digraph CulinarySupplyChain {\n";
+        file << "    rankdir=LR;\n"; // Force layout from Left to Right
+        file << "    node [fontname=\"Arial\", shape=box, style=\"rounded,filled\", fillcolor=\"#F3F4F6\", color=\"#D1D5DB\"];\n";
+        file << "    edge [fontname=\"Arial\", fontsize=10, color=\"#9CA3AF\", fontcolor=\"#4B5563\"];\n";
 
-    minCost[0] = 0;
-    pq.push({0.0, 0});
+        // Custom styling for entry and exit nodes
+        file << "    \"" << startNode << "\" [fillcolor=\"#DBEAFE\", color=\"#3B82F6\", shape=circle, penwidth=2.0];\n";
+        if (pathFound)
+        {
+            file << "    \"" << targetNode << "\" [fillcolor=\"#D1FAE5\", color=\"#10B981\", shape=doublecircle, penwidth=2.0];\n";
+        }
 
-    while (!pq.empty()) {
-        double currentCost = pq.top().first;
-        int u = pq.top().second;
-        pq.pop();
-
-        if (currentCost > minCost[u]) continue;
-
-        if (u == targetState) break;
-
-        for (const auto& edge : graph[u]) {
-            int v = edge.targetState;
-            double nextCost = currentCost + edge.cost;
-
-            if (nextCost < minCost[v]) {
-                minCost[v] = nextCost;
-                parentState[v] = u;
-                parentEdge[v] = edge;
-                pq.push({nextCost, v});
+        // Map out the optimal path backwards to easily identify active edges
+        unordered_map<string, string> shortestPathEdges; // stores parent -> child relationship
+        if (pathFound)
+        {
+            string curr = targetNode;
+            while (curr != startNode && parentNode.find(curr) != parentNode.end())
+            {
+                string parent = parentNode[curr];
+                shortestPathEdges[parent] = curr;
+                curr = parent;
             }
         }
-    }
 
-    double totalCost = minCost[targetState];
-    vector<string> receiptLines;
-    
-    int curr = targetState;
-    while (curr != 0 && parentState[curr] != -1) {
-        string line = "- Core Ingredient: " + parentEdge[curr].ingredientName + "\n" +
-                      "  " + parentEdge[curr].actionDescription + ": Rp" + to_string((int)parentEdge[curr].cost);
-        receiptLines.push_back(line);
-        curr = parentState[curr];
-    }
-    reverse(receiptLines.begin(), receiptLines.end());
+        // Write all edges from our adjacency list into the DOT schema
+        for (const auto &pair : graph.adjList)
+        {
+            string u = pair.first;
+            for (const auto &edge : pair.second)
+            {
+                string v = edge.destination;
 
+                file << "    \"" << u << "\" -> \"" << v << "\" [label=\""
+                     << edge.actionDescription << "\\nRp " << (int)edge.cost << "\"";
 
-    cout << "\n==================================================\n";
-    cout << "                  OPTIMAL RECEIPT                   \n";
-    cout << "===================================================\n";
-    cout << "Target Item : " << customProductName << "\n";
-    cout << "--------------------------------------------------\n";
-    
-    if (totalCost == numeric_limits<double>::infinity() || receiptLines.empty()) {
-        cout << "No manufacturing path could be processed.\n";
-    } else {
-        for (const auto& line : receiptLines) {
-            cout << line << "\n";
+                // Highlight the edge if it matches our Dijkstra shortest path trace
+                if (shortestPathEdges.find(u) != shortestPathEdges.end() && shortestPathEdges[u] == v)
+                {
+                    file << ", color=\"#10B981\", penwidth=3.5, fontcolor=\"#047857\"";
+                }
+
+                file << "];\n";
+            }
         }
+
+        file << "}\n";
+        file.close();
+        cout << ">>> Visual graph schema generated successfully: '" << filename << "'\n";
     }
-    
-    cout << "--------------------------------------------------\n";
-    cout << "Total Optimized Cost : Rp" << (int)totalCost << "\n";
-    cout << "Remaining Budget     : Rp" << (int)(budget - totalCost) << "\n";
+};
+
+// ---------------------------------------------------------
+// CLASS: DijkstraSolver
+// The core algorithmic engine with built-in visualization hooks
+// ---------------------------------------------------------
+class DijkstraSolver
+{
+public:
+    static void findCheapestPath(CulinaryGraph &graph, const string &startNode, const string &targetNode)
+    {
+        unordered_map<string, double> minCost;
+        unordered_map<string, string> parentNode;
+        unordered_map<string, Edge> parentEdge;
+
+        priority_queue<pair<double, string>, vector<pair<double, string>>, greater<pair<double, string>>> pq;
+
+        for (const auto &pair : graph.adjList)
+        {
+            minCost[pair.first] = numeric_limits<double>::infinity();
+            for (const auto &edge : pair.second)
+            {
+                minCost[edge.destination] = numeric_limits<double>::infinity();
+            }
+        }
+
+        if (minCost.find(targetNode) == minCost.end())
+        {
+            cout << "\n==================================================\n";
+            cout << "                 ERROR OCCURRED                   \n";
+            cout << "==================================================\n";
+            cout << "ERROR: '" << targetNode << "' was not found in the dataset.\n\n";
+            cout << "Available products detected in your CSV:\n";
+            for (const auto &pair : minCost)
+            {
+                if (pair.first != startNode)
+                    cout << " - " << pair.first << "\n";
+            }
+            cout << "==================================================\n";
+            return;
+        }
+
+        minCost[startNode] = 0;
+        pq.push({0.0, startNode});
+
+        while (!pq.empty())
+        {
+            double currentCost = pq.top().first;
+            string u = pq.top().second;
+            pq.pop();
+
+            if (currentCost > minCost[u])
+                continue;
+            if (u == targetNode)
+                break;
+
+            for (const auto &edge : graph.adjList[u])
+            {
+                string v = edge.destination;
+                double nextCost = currentCost + edge.cost;
+
+                if (nextCost < minCost[v])
+                {
+                    minCost[v] = nextCost;
+                    parentNode[v] = u;
+                    parentEdge[v] = edge;
+                    pq.push({nextCost, v});
+                }
+            }
+        }
+
+        bool pathFound = (minCost[targetNode] != numeric_limits<double>::infinity());
+
+        // Print receipt to console
+        printOptimalReceipt(minCost, parentNode, parentEdge, startNode, targetNode, pathFound);
+
+        // Automatically generate visual graph export
+        GraphvizExporter::generateDOTFile(graph, "culinary_map.dot", parentNode, startNode, targetNode, pathFound);
+    }
+
+private:
+    static void printOptimalReceipt(
+        unordered_map<string, double> &minCost,
+        unordered_map<string, string> &parentNode,
+        unordered_map<string, Edge> &parentEdge,
+        const string &startNode,
+        const string &targetNode,
+        bool pathFound)
+    {
+        cout << "\n==================================================\n";
+        cout << "                 OPTIMAL RECEIPT                  \n";
+        cout << "==================================================\n";
+        cout << "Target Item : " << targetNode << "\n";
+        cout << "--------------------------------------------------\n";
+
+        if (!pathFound)
+        {
+            cout << "ERROR: No manufacturing path could be found to reach this item.\n";
+            cout << "==================================================\n";
+            return;
+        }
+
+        vector<string> receiptLines;
+        string curr = targetNode;
+        int loopGuard = 0;
+
+        while (curr != startNode)
+        {
+            if (parentNode.find(curr) == parentNode.end() || loopGuard > 500)
+            {
+                cout << "ERROR: Path reconstruction failed due to broken database mappings.\n";
+                cout << "==================================================\n";
+                return;
+            }
+            string p = parentNode[curr];
+            Edge e = parentEdge[curr];
+
+            string line = "- Step: " + e.actionDescription + " (Yields: " + curr + ") -> Rp " + to_string((int)e.cost);
+            receiptLines.push_back(line);
+            curr = p;
+            loopGuard++;
+        }
+
+        reverse(receiptLines.begin(), receiptLines.end());
+
+        for (size_t i = 0; i < receiptLines.size(); ++i)
+        {
+            cout << (i + 1) << ". " << receiptLines[i] << "\n";
+        }
+
+        cout << "--------------------------------------------------\n";
+        cout << "Total Optimized Cost : Rp " << (int)minCost[targetNode] << "\n";
+        cout << "==================================================\n";
+    }
+};
+
+// ---------------------------------------------------------
+// MAIN RUNTIME EXECUTABLE
+// ---------------------------------------------------------
+int main()
+{
+    cout << "==================================================\n";
+    cout << "        CULINARY GRAPH: DIJKSTRA SYSTEM           \n";
     cout << "==================================================\n";
 
-    if (totalCost > budget) {
-        cout << "WARNING: Total cost exceeds your budget by Rp" << (int)(totalCost - budget) << "!\n";
-    } else {
-        cout << "SUCCESS: Solution is fully affordable.\n";
+    CulinaryGraph supplyChain;
+
+    cout << "Loading market data from CSV...\n";
+    if (!CSVParser::loadGraph("market_prices.csv", supplyChain))
+    {
+        cout << "Execution halted due to missing database resource.\n";
+        return 1;
     }
-    cout << "==================================================\n";
+    cout << "Data loaded successfully!\n\n";
+
+    string targetProduct;
+    cout << "Enter the exact name of the product you want to make: ";
+    getline(cin, targetProduct);
+
+    DijkstraSolver::findCheapestPath(supplyChain, "START", targetProduct);
 
     return 0;
 }
